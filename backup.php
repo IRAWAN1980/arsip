@@ -1,17 +1,17 @@
 <?php
-    //cek session
-    if(empty($_SESSION['admin'])){
-        $_SESSION['err'] = '<center>Anda harus login terlebih dahulu!</center>';
-        header("Location: ./");
-        die();
-    } else {
+//cek session
+if (empty($_SESSION['admin'])) {
+    $_SESSION['err'] = '<center>Anda harus login terlebih dahulu!</center>';
+    header("Location: ./");
+    die();
+} else {
 
-        if($_SESSION['admin'] != 1){
-            echo '<script language="javascript">
+    if ($_SESSION['admin'] != 1) {
+        echo '<script language="javascript">
                     window.alert("ERROR! Anda tidak memiliki hak akses untuk membuka halaman ini");
                     window.location.href="./logout.php";
                   </script>';
-        } else {
+    } else {
 
         echo '<!-- Row Start -->
                 <div class="row">
@@ -33,59 +33,117 @@
                 </div>
                 <!-- Row END -->';
 
-                // download file hasil backup
-                if(isset($_REQUEST['nama_file'])){
+        // download file hasil backup
+        if (isset($_REQUEST['nama_file'])) {
 
-                    $back_dir = "backup/";
-                	$file     = $back_dir.$_REQUEST['nama_file'];
-                    $x        = explode('.', $file);
-                    $eks      = strtolower(end($x));
+            $back_dir = "backup/";
+            $file = $back_dir . $_REQUEST['nama_file'];
+            $x = explode('.', $file);
+            $eks = strtolower(end($x));
 
-                    if($eks == 'sql'){
+            function addFilesToZip($zip, $folder, $baseFolder = '')
+            {
+                $handle = opendir($folder);
 
-                    	if(file_exists($file)){
+                while (($file = readdir($handle)) !== false) {
+                    if ($file != '.' && $file != '..') {
+                        $filePath = $folder . '/' . $file;
 
-                    		header('Content-Description: File Transfer');
-                    		header('Content-Type: application/octet-stream');
-                    		header('Content-Disposition: attachment; filename='.($file));
-                    		header('Content-Transfer-Encoding: binary');
-                    		header('Expires: 0');
-                    		header('Cache-Control: private');
-                    		header('Pragma: private');
-                    		header('Content-Length: ' . filesize($file));
-                    		ob_clean();
-                    		flush();
-                    		readfile($file);
-                    		exit;
-                    	} else {
-                            echo '<script language="javascript">
-                                    window.alert("ERROR! File sudah tidak ada");
-                                    window.location.href="./admin.php?page=sett&sub=back";
-                                  </script>';
-                        }
-                    } else {
-                        if($_SESSION['id_user'] == 1){
-                            echo '<script language="javascript">
-                                    window.alert("ERROR! Format file yang boleh didownload hanya *.SQL");
-                                    window.location.href="./logout.php";
-                                  </script>';
+                        if (is_file($filePath)) {
+                            $relativePath = ltrim(str_replace($baseFolder, '', $filePath), '/');
+                            $zip->addFile($filePath, $relativePath);
+                        } elseif (is_dir($filePath)) {
+                            addFilesToZip($zip, $filePath, $baseFolder);
                         }
                     }
                 }
 
-                // proses backup  database dilakukan oleh Fungsi
+                closedir($handle);
+            }
+            function createZipBackup($folderPath, $zipPath)
+            {
+                $zip = new ZipArchive();
+
+                if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
+                    addFilesToZip($zip, $folderPath, $folderPath);
+                    $zip->close();
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            function addFileToZip($zipPath, $fileToAdd)
+            {
+                // Check if the zip archive exists
+                if (!file_exists($zipPath)) {
+                    return false;
+                }
+
+                $zip = new ZipArchive();
+                if ($zip->open($zipPath) === true) {
+                    // Add the file to the zip archive
+                    $zip->addFile($fileToAdd, basename($fileToAdd));
+                    $zip->close();
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            if ($eks == 'sql') {
+
+                if (file_exists($file)) {
+
+                    // backup zip brou
+                    $namafilezip = explode('.', $_REQUEST['nama_file']);
+                    $folderToBackup = './upload';
+                    $backupFilePath = 'zip/' . $namafilezip[0] . '.zip';
+                    $nama = $namafilezip[0] . '.zip';
+
+                    ob_end_clean();
+
+                    if (createZipBackup($folderToBackup, $backupFilePath)) {
+                        addFileToZip($backupFilePath, $file);
+                        header("Content-type: application/zip");
+                        header("Content-Disposition: attachment; filename=$backupFilePath");
+                        header("Content-length: " . filesize($backupFilePath));
+                        header("Pragma: no-cache");
+                        header("Expires: 0");
+                        readfile($backupFilePath);
+                        unlink($backupFilePath);
+                        exit;
+                    }
+
+                } else {
+                    echo '<script language="javascript">
+                                    window.alert("ERROR! File sudah tidak ada");
+                                    window.location.href="./admin.php?page=sett&sub=back";
+                                  </script>';
+                }
+            } else {
+                if ($_SESSION['id_user'] == 1) {
+                    echo '<script language="javascript">
+                                    window.alert("ERROR! Format file yang boleh didownload hanya *.SQL");
+                                    window.location.href="./logout.php";
+                                  </script>';
+                }
+            }
+        }
+
+        // proses backup  database dilakukan oleh Fungsi
 
 
-                //nama database hasil backup
-                $file = date("Y-m-d_His").'.sql';
+        //nama database hasil backup
+        $file = date("Y-m-d_His") . '.sql';
 
-                //backup database
-                if(isset($_REQUEST['backup'])){
+        //backup database
+        if (isset($_REQUEST['backup'])) {
 
-                    //konfigurasi backup database: host, user, password, database
-                    backup($host, $username, $password, $database, $file, "*");
+            //konfigurasi backup database: host, user, password, database
+            backup($host, $username, $password, $database, $file, "*");
 
-                  echo '<!-- Row form Start -->
+            echo '<!-- Row form Start -->
                         <div class="row">
                             <div class="col m12">
                                 <div class="card">
@@ -96,15 +154,15 @@
                                     </div>
                                     <div class="card-action">
                                         <form method="post" enctype="multipart/form-data" >
-                                            <a href="?page=sett&sub=back&nama_file='.$file.'" class="btn-large blue waves-effect waves-light white-text">DOWNLOAD <i class="material-icons">file_download</i></a>
+                                            <a href="?page=sett&sub=back&nama_file=' . $file . '" class="btn-large blue waves-effect waves-light white-text">DOWNLOAD <i class="material-icons">file_download</i></a>
                                         </form>
                                     </div>
                                 </div>
                             </div>
                         </div>';
-                } else {
+        } else {
 
-                    echo '
+            echo '
                     <!-- Row form Start -->
                     <div class="row">
                         <div class="col m12">
@@ -123,7 +181,7 @@
                             </div>
                         </div>
                     </div>';
-                }
-            }
         }
+    }
+}
 ?>

@@ -155,6 +155,21 @@ if (empty($_SESSION['admin'])) {
 
                     //script untuk mencari data dokumen 
                     // Function to calculate Levenshtein Distance
+    
+                    $getColumn = mysqli_query($config, "SELECT isi FROM tbl_surat_masuk");
+
+                    $data = array();
+                    while ($row = mysqli_fetch_array($getColumn)) {
+                        $data[] = $row['isi'];
+                    }
+                    $exploded_words = array();
+                    foreach ($data as $item) {
+                        $words = explode(" ", $item);
+                        $exploded_words = array_merge($exploded_words, $words);
+
+                    }
+                    $words = array_unique($exploded_words);
+
                     function levenshteinDistance($str1, $str2)
                     {
                         $m = strlen($str1);
@@ -185,23 +200,57 @@ if (empty($_SESSION['admin'])) {
                         // Return the Levenshtein Distance
                         return $d[$m][$n];
                     }
-
-                    $query = mysqli_query($config, "SELECT * FROM tbl_surat_masuk WHERE isi LIKE '%$cari%' ORDER by id_surat DESC LIMIT 15");
-                    if (mysqli_num_rows($query) > 0) {
-                        $no = 1;
-                        $searchResults = array();
-                        while ($row = mysqli_fetch_array($query)) {
-                            $levDistance = levenshteinDistance($row['isi'], $cari);
-                            $searchResults[] = array('levDistance' => $levDistance, 'data' => $row);
+                    function levenshtein2($a, $b)
+                    {
+                        $input = $a;
+                        $words = $b;
+                        $shortest = -1;
+                        foreach ($words as $word) {
+                            $lev = levenshtein($input, $word);
+                            if ($lev == 0) {
+                                $closest = $word;
+                                $shortest = 0;
+                                break;
+                            }
+                            if ($lev <= $shortest || $shortest < 0) {
+                                $closest = $word;
+                                $shortest = $lev;
+                            }
                         }
-                        // Sort the search results by Levenshtein Distance in ascending order
-                        usort($searchResults, function ($a, $b) {
-                            return $a['levDistance'] - $b['levDistance'];
-                        });
+                        if ($shortest == 0) {
+                            return $closest;
+                        } else if ($shortest > 0 && $shortest <= 2) {
+                            return $closest;
+                        } else {
+                            return "Data tidak ditemukan.\n";
+                        }
+                    }
 
+                    $search = levenshtein2($cari, $words);
+
+                    $check = mysqli_query($config, "SELECT * FROM tbl_surat_masuk WHERE isi LIKE '%$cari%' ORDER by id_surat DESC LIMIT 15");
+                    if (mysqli_num_rows($check) != 0) {
+                        $query = $check;
+                    } else {
+                        $query = mysqli_query($config, "SELECT * FROM tbl_surat_masuk WHERE isi LIKE '%$search%' ORDER by id_surat DESC LIMIT 15");
+                    }
+                    if (mysqli_num_rows($query) > 0) {
+
+                        // $query = mysqli_query($config, "SELECT * FROM tbl_surat_masuk WHERE isi LIKE '%$search%' ORDER by id_surat DESC LIMIT 15");
+                        // $no = 1;
+                        // $searchResults = array();
+                        // while ($row = mysqli_fetch_array($query)) {
+                        //     $levDistance = levenshteinDistance($row['isi'], $cari);
+                        //     $searchResults[] = array('levDistance' => $levDistance, 'data' => $row);
+                        // }
+                        // // Sort the search results by Levenshtein Distance in ascending order
+                        // usort($searchResults, function ($a, $b) {
+                        //     return $a['levDistance'] - $b['levDistance'];
+                        // });
+    
                         // Display the search results
-                        foreach ($searchResults as $result) {
-                            $row = $result['data'];
+                        foreach ($query as $row) {
+                            // $row = $result['data'];
                             echo '
                              <tr>
                              <td>' . $row['no_agenda'] . '<br/><hr/>' . $row['kode'] . '</td>
